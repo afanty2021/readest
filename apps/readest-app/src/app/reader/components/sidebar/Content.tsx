@@ -2,13 +2,10 @@ import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
 
 import { BookDoc } from '@/libs/document';
-import { useThemeStore } from '@/store/themeStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useSidebarStore } from '@/store/sidebarStore';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
-import 'overlayscrollbars/overlayscrollbars.css';
 
 import TOCView from './TOCView';
 import BooknoteView from './BooknoteView';
@@ -19,7 +16,6 @@ const SidebarContent: React.FC<{
   bookDoc: BookDoc;
   sideBarBookKey: string;
 }> = ({ bookDoc, sideBarBookKey }) => {
-  const { safeAreaInsets } = useThemeStore();
   const { setHoveredBookKey } = useReaderStore();
   const { setSideBarVisible } = useSidebarStore();
   const { getConfig, setConfig } = useBookDataStore();
@@ -47,13 +43,16 @@ const SidebarContent: React.FC<{
   }, [aiEnabled, activeTab, targetTab]);
 
   const handleTabChange = (tab: string) => {
-    setFade(true);
-    const timeout = setTimeout(() => {
-      if (activeTab === tab && isMobile) {
+    if (activeTab === tab) {
+      if (isMobile) {
         setHoveredBookKey(sideBarBookKey);
         setSideBarVisible(false);
-        return;
       }
+      return;
+    }
+
+    setFade(true);
+    const timeout = setTimeout(() => {
       setTargetTab(tab);
       setFade(false);
       setConfig(sideBarBookKey!, config);
@@ -76,14 +75,7 @@ const SidebarContent: React.FC<{
         {targetTab === 'history' ? (
           <ChatHistoryView bookKey={sideBarBookKey} />
         ) : (
-          <OverlayScrollbarsComponent
-            className='min-h-0 flex-1'
-            options={{
-              scrollbars: { autoHide: 'scroll', clickScroll: true },
-              showNativeOverlaidScrollbars: false,
-            }}
-            defer
-          >
+          <div className='min-h-0 flex-1'>
             <div
               className={clsx(
                 'scroll-container h-full transition-opacity duration-300 ease-in-out',
@@ -94,22 +86,30 @@ const SidebarContent: React.FC<{
               )}
             >
               {targetTab === 'toc' && bookDoc.toc && (
-                <TOCView toc={bookDoc.toc} sections={bookDoc.sections} bookKey={sideBarBookKey} />
+                <TOCView toc={bookDoc.toc} bookKey={sideBarBookKey} />
               )}
               {targetTab === 'annotations' && (
-                <BooknoteView type='annotation' toc={bookDoc.toc ?? []} bookKey={sideBarBookKey} />
+                <div className='sidebar-scroller h-full'>
+                  <BooknoteView
+                    type='annotation'
+                    toc={bookDoc.toc ?? []}
+                    bookKey={sideBarBookKey}
+                  />
+                </div>
               )}
               {targetTab === 'bookmarks' && (
-                <BooknoteView type='bookmark' toc={bookDoc.toc ?? []} bookKey={sideBarBookKey} />
+                <div className='sidebar-scroller h-full'>
+                  <BooknoteView type='bookmark' toc={bookDoc.toc ?? []} bookKey={sideBarBookKey} />
+                </div>
               )}
             </div>
-          </OverlayScrollbarsComponent>
+          </div>
         )}
       </div>
       <div
         className='flex-shrink-0'
         style={{
-          paddingBottom: `${(safeAreaInsets?.bottom || 0) / 2}px`,
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) / 2)',
         }}
       >
         <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />

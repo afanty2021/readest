@@ -16,7 +16,7 @@ import SectionInfo from './SectionInfo';
 import HeaderBar from './HeaderBar';
 import PageNavigationButtons from './PageNavigationButtons';
 import FooterBar from './footerbar/FooterBar';
-import ProgressInfoView from './ProgressInfo';
+import ProgressBar from './ProgressBar';
 import Ribbon from './Ribbon';
 import Annotator from './annotator/Annotator';
 import FootnotePopup from './FootnotePopup';
@@ -121,12 +121,13 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook, onGoToLibr
             {isBookmarked && !hoveredBookKey && <Ribbon width={`${horizontalGapPercent}%`} />}
             <HeaderBar
               bookKey={bookKey}
+              gridInsets={gridInsets}
+              screenInsets={screenInsets}
               bookTitle={book.title}
               isTopLeft={index === 0}
               isHoveredAnim={bookKeys.length > 2}
               onCloseBook={onCloseBook}
               onGoToLibrary={onGoToLibrary}
-              gridInsets={gridInsets}
               onDropdownOpenChange={(isOpen) => setDropdownOpenBook(isOpen ? bookKey : '')}
             />
             <PageNavigationButtons
@@ -147,7 +148,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook, onGoToLibr
                   <div
                     className='bg-base-100 absolute left-0 top-0 h-full'
                     style={{
-                      width: `calc(${contentInsets.left + (showFooter ? 32 : 0)}px)`,
+                      width: `calc(${contentInsets.left + (viewSettings.doubleBorder ? 32 : 0)}px)`,
                       height: `calc(100%)`,
                     }}
                   />
@@ -156,7 +157,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook, onGoToLibr
                   <div
                     className='bg-base-100 absolute right-0 top-0 h-full'
                     style={{
-                      width: `calc(${contentInsets.right + (showHeader ? 32 : 0)}px)`,
+                      width: `calc(${contentInsets.right + (viewSettings.doubleBorder ? 32 : 0)}px)`,
                       height: `calc(100%)`,
                     }}
                   />
@@ -210,7 +211,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook, onGoToLibr
               />
             )}
             {showFooter && (
-              <ProgressInfoView
+              <ProgressBar
                 bookKey={bookKey}
                 horizontalGap={horizontalGapPercent}
                 contentInsets={contentInsets}

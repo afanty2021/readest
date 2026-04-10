@@ -5,13 +5,12 @@ import * as React from 'react';
 import { MdChevronRight } from 'react-icons/md';
 import { useState, useRef, useEffect, Suspense, useCallback } from 'react';
 import { ReadonlyURLSearchParams, useSearchParams } from 'next/navigation';
-import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from 'overlayscrollbars-react';
-import 'overlayscrollbars/overlayscrollbars.css';
 
 import { Book } from '@/types/book';
 import { AppService, DeleteAction } from '@/types/system';
 import { navigateToLibrary, navigateToReader } from '@/utils/nav';
 import { formatAuthors, formatTitle, getPrimaryLanguage, listFormater } from '@/utils/book';
+import { getImportErrorMessage } from '@/services/errors';
 import { eventDispatcher } from '@/utils/event';
 import { ProgressPayload } from '@/utils/transfer';
 import { throttle } from '@/utils/throttle';
@@ -53,10 +52,12 @@ import {
 import { LibraryGroupByType } from '@/types/settings';
 import { BookMetadata } from '@/libs/document';
 import { AboutWindow } from '@/components/AboutWindow';
+import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { BookDetailModal } from '@/components/metadata';
 import { UpdaterWindow } from '@/components/UpdaterWindow';
 import { CatalogDialog } from './components/OPDSDialog';
 import { MigrateDataWindow } from './components/MigrateDataWindow';
+import { BackupWindow } from './components/BackupWindow';
 import { useDragDropImport } from './hooks/useDragDropImport';
 import { useTransferQueue } from '@/hooks/useTransferQueue';
 import { useAppRouter } from '@/hooks/useAppRouter';
@@ -131,28 +132,22 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const iconSize = useResponsiveSize(18);
   const viewSettings = settings.globalViewSettings;
   const demoBooks = useDemoBooks();
-  const osRef = useRef<OverlayScrollbarsComponentRef>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
   const pageRef = useRef<HTMLDivElement>(null);
 
   const getScrollKey = (group: string) => `library-scroll-${group || 'all'}`;
 
   const saveScrollPosition = (group: string) => {
-    const viewport = osRef.current?.osInstance()?.elements().viewport;
-    if (viewport) {
-      const scrollTop = viewport.scrollTop;
-      sessionStorage.setItem(getScrollKey(group), scrollTop.toString());
+    if (scrollRef.current) {
+      sessionStorage.setItem(getScrollKey(group), scrollRef.current.scrollTop.toString());
     }
   };
 
   const restoreScrollPosition = useCallback((group: string) => {
     const savedPosition = sessionStorage.getItem(getScrollKey(group));
-    if (savedPosition) {
-      const scrollTop = parseInt(savedPosition, 10);
-      const viewport = osRef.current?.osInstance()?.elements().viewport;
-      if (viewport) {
-        viewport.scrollTop = scrollTop;
-      }
+    if (savedPosition && scrollRef.current) {
+      scrollRef.current.scrollTop = parseInt(savedPosition, 10);
     }
   }, []);
 
@@ -495,14 +490,6 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     const { library } = useLibraryStore.getState();
     const failedImports: Array<{ filename: string; errorMessage: string }> = [];
     const successfulImports: string[] = [];
-    const errorMap: [string, string][] = [
-      ['No chapters detected', _('No chapters detected')],
-      ['Failed to parse EPUB', _('Failed to parse the EPUB file')],
-      ['Unsupported format', _('This book format is not supported')],
-      ['Failed to open file', _('Failed to open the book file')],
-      ['Invalid or empty book file', _('The book file is empty')],
-      ['Unsupported or corrupted book file', _('The book file is corrupted')],
-    ];
 
     const processFile = async (selectedFile: SelectedFile): Promise<Book | null> => {
       const file = selectedFile.file || selectedFile.path;
@@ -530,10 +517,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       } catch (error) {
         const filename = typeof file === 'string' ? file : file.name;
         const baseFilename = getFilename(filename);
-        const errorMessage =
-          error instanceof Error
-            ? errorMap.find(([str]) => error.message.includes(str))?.[1] || error.message
-            : '';
+        const errorMessage = error instanceof Error ? _(getImportErrorMessage(error.message)) : '';
         failedImports.push({ filename: baseFilename, errorMessage });
         console.error('Failed to import book:', filename, error);
         return null;
@@ -814,7 +798,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   return (
     <div
       ref={pageRef}
-      aria-label='Your Library'
+      aria-label={_('Your Library')}
       className={clsx(
         'library-page text-base-content full-height flex select-none flex-col overflow-hidden',
         viewSettings?.isEink ? 'bg-base-100' : 'bg-base-200',
@@ -898,22 +882,13 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       )}
       {showBookshelf &&
         (libraryBooks.some((book) => !book.deletedAt) ? (
-          <OverlayScrollbarsComponent
-            defer
-            aria-label=''
-            ref={osRef}
-            className='flex-grow'
-            options={{ scrollbars: { autoHide: 'scroll' } }}
-            events={{
-              initialized: (instance) => {
-                const { content } = instance.elements();
-                if (content) {
-                  containerRef.current = content as HTMLDivElement;
-                }
-              },
-            }}
+          <div
+            ref={scrollRef}
+            aria-label={_('Your Bookshelf')}
+            className='library-scroller flex-grow'
           >
             <div
+              ref={containerRef}
               className={clsx('scroll-container drop-zone flex-grow', isDragging && 'drag-over')}
               style={{
                 paddingTop: '0px',
@@ -939,7 +914,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
                 handlePushLibrary={pushLibrary}
               />
             </div>
-          </OverlayScrollbarsComponent>
+          </div>
         ) : (
           <div className='hero drop-zone h-screen items-center justify-center'>
             <DropIndicator />
@@ -977,8 +952,10 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         </ModalPortal>
       )}
       <AboutWindow />
+      <KeyboardShortcutsHelp />
       <UpdaterWindow />
       <MigrateDataWindow />
+      <BackupWindow onPullLibrary={pullLibrary} />
       {isSettingsDialogOpen && <SettingsDialog bookKey={''} />}
       {showCatalogManager && <CatalogDialog onClose={handleDismissOPDSDialog} />}
       <Toast />
